@@ -47,7 +47,7 @@ SHOWPREFIX="${GREEN_TEXT}${PREFIXSTRING}${RESET_ATTS}"
 SHOWSUFFIX=""
 # following variable is conformed on installation by ebuild
 # (to reflect setting of "buildkernel" USE flag)
-USE_BUILDKERNEL=true
+USE_BUILDKERNEL=false
 # following variable is conformed on installation by ebuild
 # (to reflect setting of "emtee" USE flag)
 USE_EMTEE=false
@@ -82,6 +82,7 @@ declare -i ARG_NO_FIXUPS=0
 declare -i ARG_NO_EIX_METADATA_UPDATE=0 ARG_NO_NOCACHE=0
 declare -i ARG_NO_MODULE_REBUILD=0
 declare -i ADJUSTMENT=19
+declare -i BOOTMOUNTED=0
 # force TERM if none found (e.g. when running from cron)
 # otherwise mach builds (firefox etc.) will fail
 if ! tty -s; then
@@ -227,6 +228,45 @@ update_portage_tree_and_sync_eix() {
         fi
     fi
 }
+mount_boot() {
+    # check if boot should be mounted or remounted writable
+
+    local fstab=$(grep -e "/boot" /etc/fstab | sed "/^#/d" | wc -l)
+    if ((! ${fstab} >= 1)); then
+        warning "boot not defined in fstab, skipping  remount checks"
+        return
+    fi
+
+    if [[ ! $(findmnt -M /boot) ]]; then
+        show "Mounting /boot"
+        mount -o rw /boot
+        BOOTMOUNTED=1
+        return
+    elif [[ ! -w /boot ]]; then
+        # check if boot is mounted read-only
+        show "Re-Mounting /boot writable"
+        mount -o,remount,rw /boot
+        BOOTMOUNTED=2
+        return
+    fi
+
+}
+
+umount_boot() {
+    # return boot mount to original state
+    if ((BOOTMOUNTED==1)); then
+        show "Unmounting /boot"
+        umount /boot
+        BOOTMOUNTED=0
+        return
+    elif ((BOOTMOUNTED==2)); then
+        show "Re-Mounting /boot read-only"
+        mount -o,remount,ro /boot
+        BOOTMOUNTED=0
+        return
+    fi
+}
+
 remove_any_prior_emerge_resume_history() {
     # as if we call emerge --resume later, we don't want any hangovers from the
     # previous invocation
@@ -238,6 +278,20 @@ ensure_portage_itself_is_up_to_date() {
     # don't fail on this, as an @world update may solve any blocks
     ${EMERGE} ${VERBOSITYFLAG} --oneshot --update sys-apps/portage || \
         warning "Could not update Portage: proceeding anyway"
+}
+
+ensure_bubbagen_is_up_to_date() {
+    if [[ ! -e /etc/bubba/bubba.version ]]; then
+        return
+    fi
+    show "Bringing bubbagen up to date..."
+    if (grep -q "_pre" /etc/bubba/bubba.version); then
+        TODAY=$(date +%y%m%d)
+        grep -q "_pre${TODAY}" /etc/bubba/bubba.version || \
+            ${EMERGE} ${VERBOSITYFLAG} --oneshot app-admin/bubbagen
+    else
+        ${EMERGE} ${VERBOSITYFLAG} --oneshot --update app-admin/bubbagen
+    fi
 }
 
 ensure_genup_itself_is_up_to_date() {
@@ -810,6 +864,8 @@ check_if_using_distcc
 display_greeting
 check_gcc_config_and_reset_if_necessary
 update_portage_tree_and_sync_eix
+mount_boot
+ensure_bubbagen_is_up_to_date
 remove_any_prior_emerge_resume_history
 run_fixups_if_present
 ensure_portage_itself_is_up_to_date
@@ -831,6 +887,7 @@ copy_new_kernel_from_staging_if_present_and_desired
 update_environment
 update_eix_metadata
 run_custom_updaters_if_present
+umount_boot
 display_final_status
 cleanup_and_exit_with_code 0
 # **************** end of script proper ****************
