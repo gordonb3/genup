@@ -1,10 +1,13 @@
 # genup
 Tool to update the **Portage**(5) tree, all installed packages, and kernel, under Gentoo Linux.
 
-> 31 Oct 2020: sadly, due to legal obligations arising from a recent change in my 'real world' job, I must announce I am **standing down as maintainer of this project with immediate effect**. For the meantime, I will leave the repo up (for historical interest, and it may be of use to others); however, I plan no further updates, nor will I be accepting / actioning further pull requests or bug reports from this point. Email requests for support will also have to be politely declined, so, **please treat this as an effective EOL notice**.<br><br>For further details, please see my post [here](https://forums.gentoo.org/viewtopic-p-8522963.html#8522963).<br><br>With sincere apologies, sakaki ><
+## Info on this fork
+I forked this project from [sakaki-/genup](https://github.com/sakaki-/genup) after the Gentoo devs came up with a rather ridiculous USE flag change to Perl and associated modules, which caused portage itself to get into a state from where it can't recover on its own when genup was being unattended and/or the system owner did not follow the suggestion to abort the update of Perl on account of a mismatch between the old USE flag and the new global one.
+
+It needs to be noted here that I can in fact not change any such errors made by the main Gentoo devs other than report them and hope that they will acknowledge their error and create a workable fix for it. Similarly I can not change portage offering to write incorrect flags to package.use that if accepted will in fact cause the system to become corrupted. The updates in this fork specifically target users that have the `bubba` meta package installed on the Excito B2|B3 machine and through which I am able to push forward out of the ordinary required configuration changes.
 
 ## Description
-**genup** is  a  utility  intended  to  simplify the process of keeping your Gentoo system up to date.  When invoked, it automatically performs the following steps, in order:
+**genup** is a utility intended to simplify the process of keeping your Gentoo system up to date. When invoked, it automatically performs the following steps, in order:
 * updates Portage tree (and active overlays), and syncs **eix**(1)
 (using `emaint sync` / `eix-sync`)
 * removes any prior **emerge**(1) resume history
@@ -45,9 +48,9 @@ Tool to update the **Portage**(5) tree, all installed packages, and kernel, unde
 (using `eix-sync -0`)
 * runs any custom updaters in /etc/genup/updaters.d
 
-The genup utility can be invoked in non-interative (default) or interactive mode (see the  **--ask**  option in the manpage).   Non-interactive  mode  is  suitable  for use in a scripted invocation, for example as part of a nightly **cron**(8) job.
+The genup utility can be invoked in non-interactive (default) or interactive mode (see the **--ask** option in the manpage). Non-interactive mode is suitable for use in a scripted invocation, for example as part of a nightly **cron**(8) job.
 
 ## Installation
 
-**genup** is best installed (on Gentoo) via its ebuild, available as part of the **sakaki-tools** [overlay](https://github.com/sakaki-/sakaki-tools).
-Full instructions are provided as part of the [**Sakaki's EFI Install Guide**](https://wiki.gentoo.org/wiki/Sakaki's_EFI_Install_Guide) tutorial, on the Gentoo wiki.
+**genup** is best installed (on Gentoo) via its ebuild, available as part of the **bubbas** [overlay](https://github.com/gordonb3/bubba-overlay).
+
