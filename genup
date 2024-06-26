@@ -280,20 +280,6 @@ ensure_portage_itself_is_up_to_date() {
         warning "Could not update Portage: proceeding anyway"
 }
 
-ensure_bubbagen_is_up_to_date() {
-    if [[ ! -e /etc/bubba/bubba.version ]]; then
-        return
-    fi
-    show "Bringing bubbagen up to date..."
-    if (grep -q "_pre" /etc/bubba/bubba.version); then
-        TODAY=$(date +%y%m%d)
-        grep -q "_pre${TODAY}" /etc/bubba/bubba.version || \
-            ${EMERGE} ${VERBOSITYFLAG} --oneshot app-admin/bubbagen
-    else
-        ${EMERGE} ${VERBOSITYFLAG} --oneshot --update app-admin/bubbagen
-    fi
-}
-
 ensure_genup_itself_is_up_to_date() {
     show "Bringing genup itself up to date..."
     ${EMERGE} ${VERBOSITYFLAG} --oneshot --update app-portage/genup
@@ -303,6 +289,23 @@ ensure_genup_itself_is_up_to_date() {
         warning "The version of genup has changed!"
         warning "Restarting genup process..."
         exec "${SCRIPTPATH}" ${ORIGINAL_ARGS}
+    fi
+}
+
+ensure_bubbagen_is_up_to_date() {
+    if [[ ! -e /etc/bubba/bubba.version ]]; then
+        return
+    fi
+    show "Bringing bubbagen up to date..."
+    OLD_BUBBA_VERSION=$(cat /etc/bubba/bubba.version)
+    if (grep -q "_pre" /etc/bubba/bubba.version); then
+        ${EMERGE} ${VERBOSITYFLAG} --oneshot app-admin/bubbagen
+    else
+        ${EMERGE} ${VERBOSITYFLAG} --oneshot --update app-admin/bubbagen
+    fi
+    NEW_BUBBA_VERSION=$(cat /etc/bubba/bubba.version)
+    if [[ ${OLD_BUBBA_VERSION} != ${NEW_BUBBA_VERSION} ]]; then
+    	dispatch-conf
     fi
 }
 
@@ -865,11 +868,11 @@ display_greeting
 check_gcc_config_and_reset_if_necessary
 update_portage_tree_and_sync_eix
 mount_boot
-ensure_bubbagen_is_up_to_date
 remove_any_prior_emerge_resume_history
 run_fixups_if_present
 ensure_portage_itself_is_up_to_date
 ensure_genup_itself_is_up_to_date
+ensure_bubbagen_is_up_to_date
 try_emtee_update_if_enabled
 update_all_packages_in_world_set_and_dependencies
 remove_unreferenced_packages
