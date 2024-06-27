@@ -212,6 +212,12 @@ been downloaded by Portage, but which do not relate to the installed version of
 any package.
 This option inhibits such cleaning.
 .TP
+.BR \-l ", " \-\-live\-rebuild
+Select this option to let \fBgenup\fR rebuild any live packages you might have.
+
+Note that this option does not have to be specified for app-admin/bubbagen-9999 which
+will always be rebuilt to maintain system health.
+.TP
 .BR \-m ", " \-\-no\-eix\-metadata\-update
 Do not perform an update of the \fBeix\fR metadata at the end-of-run (NB, specifying
 this may cause odd results to be reported when using the \fBeix\fR tool
