@@ -82,7 +82,7 @@ declare -i ARG_NO_FIXUPS=0
 declare -i ARG_NO_EIX_METADATA_UPDATE=0 ARG_NO_NOCACHE=0
 declare -i ARG_NO_MODULE_REBUILD=0
 declare -i ADJUSTMENT=19
-declare -i BOOTMOUNTED=0
+declare -i BOOTMOUNTED=0 ARG_LIVE_REBUILD=0
 # force TERM if none found (e.g. when running from cron)
 # otherwise mach builds (firefox etc.) will fail
 if ! tty -s; then
@@ -98,6 +98,7 @@ cleanup_and_exit_with_code() {
     trap - EXIT
     exit $1
 }
+
 show() {
     local MESSAGE=${1:-""}
     local VERBLEVEL=${2:-${VERBOSITY}}
@@ -105,6 +106,7 @@ show() {
         echo -e "${SHOWPREFIX}${MESSAGE}${SHOWSUFFIX}"
     fi
 }
+
 alertshow() {
     local MESSAGE=${1:-""}
     local VERBLEVEL=${2:-${VERBOSITY}}
@@ -114,14 +116,17 @@ alertshow() {
         echo -e "${SHOWPREFIX}${MESSAGE}${SHOWSUFFIX}${ALERT_TEXT}"
     fi
 }
+
 warning() {
     echo -e "${YELLOW_TEXT}${PREFIXSTRING}${RESET_ATTS}${PROGNAME}: Warning: ${1}" >&2
 }
+
 die() {
     echo
     echo -e "${RED_TEXT}${PREFIXSTRING}${RESET_ATTS}${PROGNAME}: Error: ${1} - exiting" >&2
     cleanup_and_exit_with_code 1
 }
+
 trap_cleanup() {
     trap - SIGHUP SIGQUIT SIGINT SIGTERM SIGKILL EXIT
     die "Caught signal"
@@ -137,12 +142,14 @@ test_yn() {
         return 1
     fi
 }
+
 continue_yn() {
     if ! test_yn "${1}"; then
         echo -e "${RED_TEXT}${PREFIXSTRING}${RESET_ATTS}Quitting" >&2
         cleanup_and_exit_with_code 1
     fi
 }
+
 suppress_colours() {
     RED_TEXT=""
     GREEN_TEXT=""
@@ -150,9 +157,11 @@ suppress_colours() {
     RESET_ATTS=""
     SHOWPREFIX="${PREFIXSTRING}"
 }
+
 suppress_alert() {
     ALERT_TEXT=""
 }
+
 suppress_colour_and_alert_if_output_not_to_a_terminal() {
     if [ ! -t 1 -o ! -t 2 ]; then
         # we are going to a non-terminal
@@ -160,16 +169,19 @@ suppress_colour_and_alert_if_output_not_to_a_terminal() {
         suppress_alert
     fi
 }
+
 set_idle_io_priority() {
     # prevent our operations stalling swap
     ionice -c 3 -p $$
 }
+
 read_portage_info_if_necessary() {
     if [ -z "${PORTAGEINFO}" ]; then
         show "Checking Portage configuration, please wait..."
         PORTAGEINFO="$(emerge --info)"
     fi
 }
+
 check_gcc_config_and_reset_if_necessary() {
     # check if gcc-config exists with an error - if it does, then
     # attempt to set one based on the current gcc version number
@@ -199,9 +211,11 @@ check_gcc_config_and_reset_if_necessary() {
         fi
     fi
 }
+
 display_greeting() {
     show "Gentoo System Updater v${VERSION}"
 }
+
 update_portage_tree_and_sync_eix() {
     if ((ARG_NO_EIX_SYNC==0)); then
         if ((WEBRSYNC==1)); then
@@ -228,6 +242,7 @@ update_portage_tree_and_sync_eix() {
         fi
     fi
 }
+
 mount_boot() {
     # check if boot should be mounted or remounted writable
 
@@ -273,6 +288,7 @@ remove_any_prior_emerge_resume_history() {
     show "Removing any prior emerge history..."
     emaint --fix cleanresume
 }
+
 ensure_portage_itself_is_up_to_date() {
     show "Bringing Portage itself up to date..."
     # don't fail on this, as an @world update may solve any blocks
@@ -377,6 +393,7 @@ update_all_packages_in_world_set_and_dependencies() {
         die "Could not update @world because config changes required (please see above)"
     fi
 }
+
 rebuild_external_modules_if_necessary() {
     if ((ARG_NO_MODULE_REBUILD==1)); then
         return
@@ -397,6 +414,25 @@ rebuild_external_modules_if_necessary() {
         fi
     fi
 }
+
+
+rebuild_live_packages() {
+    if ((ARG_LIVE_REBUILD==0)); then
+        return
+    fi
+
+    show "Rebuilding live (-9999) packages"
+    if ! ${PUMP} ${EMERGE} ${VERBOSITYFLAG} @live-rebuild --exclude 'bubbagen'; then
+        if MAKEOPTS="${MAKEOPTS-} -j1" FEATURES="${NOPUMP}" ${EMERGE} --resume; then
+            warning "emerge @live-rebuild completed successfully, but only by restricting"
+            warning "build parallelism and distcc"
+        else
+            warning "Failed to complete emerge @live-rebuild due to error"
+            warning "Continuing..."
+        fi
+    fi
+}
+
 rebuild_packages_depending_on_stale_libraries() {
     # when a shared library gets updated, and its soname is changed
     # all its consumers are not automatically rebuilt; assuming (the default)
@@ -428,6 +464,7 @@ rebuild_packages_depending_on_stale_libraries() {
         fi
     fi
 }
+
 bring_old_perl_modules_up_to_date() {
     # perl modules are built for a particular perl target, but are *not*
     # automatically rebuilt when perl upgrades to a higher version - the
@@ -437,10 +474,12 @@ bring_old_perl_modules_up_to_date() {
         perl-cleaner ${VERBOSITYFLAG} --all
     fi
 }
+
 cleanup_python_config() {
     # remove uninstalled versions from /etc/python-exec/python-exec.conf
     eselect python cleanup
 }
+
 run_custom_updaters_if_present() {
     # if not inhibited, find any executable files in the /etc/genup/updaters.d
     # top-level directory (resolving symlinks) and execute them in turn,
@@ -461,6 +500,7 @@ run_custom_updaters_if_present() {
         fi
     fi
 }
+
 run_fixups_if_present() {
     # if not inhibited, and running on aarch64, and the file
     # /etc/cron.weekly/fixup is present and executable, run it: this
@@ -479,6 +519,7 @@ run_fixups_if_present() {
         fi
     fi
 }   
+
 check_if_dispatch_conf_needs_to_be_run() {
     # check if the user has any configuration file changes pending review
     # by dispatch-conf, and set the NEEDSDISPATCHCONF variable accordingly
@@ -491,6 +532,7 @@ check_if_dispatch_conf_needs_to_be_run() {
         NEEDSDISPATCHCONF=0
     fi
 }
+
 interactively_resolve_clashing_config_file_changes() {
     # where user has changed an e.g. /etc/ file overwritten by a package
     # update, invoke an interactive tool allowing them to resolve the issue
@@ -507,6 +549,7 @@ interactively_resolve_clashing_config_file_changes() {
         show "No configuration files need updating"
     fi
 }
+
 offer_kernel_upgrade_to_staging_if_available() {
     # we may have been instructed not to do this...
     if ((ARG_NO_KERNEL_UPGRADE==1)); then
@@ -536,6 +579,7 @@ offer_kernel_upgrade_to_staging_if_available() {
         show "Your kernel (${CURRENT_KV}) is the latest version available!"
     fi
 }
+
 purge_old_distfiles_if_desired() {
     # by default, Portage keeps old source tarballs (distfiles) around
     # forever (in /usr/portage/distfiles); the following command, from the
@@ -546,6 +590,7 @@ purge_old_distfiles_if_desired() {
         eclean ${VERBOSITYFLAG} --deep distfiles
     fi
 }
+
 copy_new_kernel_from_staging_if_present_and_desired() {
     declare -i DO_KERNELDEPLOY=0
     if ((KERNELBUILT==1)); then
@@ -565,12 +610,14 @@ copy_new_kernel_from_staging_if_present_and_desired() {
         fi
     fi
 }
+
 update_environment() {
     # append values in /etc/env.d/... files into /etc/profile.env
     # also create /etc/ld.so.conf, and run ldconfig (to recreate
     # /etc/ld.so.cache)
     env-update
 }
+
 update_eix_metadata() {
     # ensure eix metadata is up-to-date (will not be if
     # only non-gentoo repos have changed in this run)
@@ -582,6 +629,7 @@ update_eix_metadata() {
         warning "As requested, not updating eix metadata"
     fi
 }
+
 remove_unreferenced_packages() {
     # following should be reasonably safe, it removes any packages that are not
     # required by the transitive closure of @world set dependencies
@@ -591,6 +639,7 @@ remove_unreferenced_packages() {
     # the replacement version's config, so...
     check_gcc_config_and_reset_if_necessary
 }
+
 rebuild_where_missing_libraries_detected() {
     # check for missing shared library dependencies (possibly caused by
     # emerge --depclean) and attempt to fix them, by re-emerging the broken
@@ -598,6 +647,7 @@ rebuild_where_missing_libraries_detected() {
     show "Fixing any broken/missing libraries and binaries caused by cleanup..."
     revdep-rebuild 
 }
+
 display_final_status() {
     show
     if ((KERNELBUILT==1)); then
@@ -643,6 +693,7 @@ display_final_status() {
     show
     show "All done - your system is now up-to-date!"
 }
+
 print_usage() {
     cat << EOF
 Usage: ${PROGNAME} [options]
@@ -703,15 +754,18 @@ Options:
                         (e.g. use --eix-sync-args="-q" to suppress output)
 EOF
 }
+
 print_help() {
     cat << EOF
 ${PROGNAME} - update Portage tree, all installed packages, and kernel
 EOF
     print_usage
 }
+
 print_version() {
     printf "%s\n" "${VERSION}"
 }
+
 display_usage_message_and_bail_out() {
     if [ ! -z "${1+x}" ]; then
         printf "%s: %s\n" "${PROGNAME}" "${1}" >&2
@@ -719,6 +773,7 @@ display_usage_message_and_bail_out() {
     print_usage >&2
     cleanup_and_exit_with_code 1
 }
+
 internal_consistency_option_checks() {
     # following not exhaustive, just some more obvious snafus
     local KERNMSG="--no-kernel-upgrade"
@@ -737,12 +792,14 @@ internal_consistency_option_checks() {
             display_usage_message_and_bail_out "must have -20 <= build niceness adjustment <= 19"
     fi
 }
+
 read_portage_features_if_necessary() {
     read_portage_info_if_necessary
     if [ -z "${PORTAGEFEATURES}" ]; then
         PORTAGEFEATURES="$(grep '^FEATURES.*$' <<<"${PORTAGEINFO}")"
     fi
 }
+
 check_if_using_webrsync_gpg() {
     # we have to amend the args to eix if using webrsync-gpg feature
     read_portage_features_if_necessary
@@ -753,6 +810,7 @@ check_if_using_webrsync_gpg() {
 	    WEBRSYNC=1
     fi
 }
+
 check_if_using_distcc() {
     # check for the relevant feature... turn on PUMP prefix if
     # we find it
@@ -763,12 +821,13 @@ check_if_using_distcc() {
         PUMP="" # no need for this, will work automatically
     fi
 }
+
 process_command_line_options() {
     local TEMP
     declare -i RC
     set +e
         # error trapping off, as we want to handle errors
-        TEMP="$(getopt -o aAb:cCde:EFhikmMnNpr:SvVx: --long ask,alert,buildkernel-args:,dispatch-conf,no-custom-updaters,deploy-from-staging,emerge-args:,no-emtee,no-fixups,help,ignore-required-changes,keep-old-distfiles,no-eix-metadata-update,no-module-rebuild,no-kernel-upgrade,no-nocache,no-perl-cleaner,adjustment:,no-eix-sync,verbose,version,eix-sync-args: -n "${PROGNAME}" -- "${@}")"
+        TEMP="$(getopt -o aAb:cCde:EFhiklmMnNpr:SvVx: --long ask,alert,buildkernel-args:,dispatch-conf,no-custom-updaters,deploy-from-staging,emerge-args:,no-emtee,no-fixups,help,ignore-required-changes,keep-old-distfiles,live-rebuild,no-eix-metadata-update,no-module-rebuild,no-kernel-upgrade,no-nocache,no-perl-cleaner,adjustment:,no-eix-sync,verbose,version,eix-sync-args: -n "${PROGNAME}" -- "${@}")"
         RC="${?}"
     set -e
     if ((RC!=0)); then
@@ -799,6 +858,7 @@ process_command_line_options() {
             -h|--help) ARG_HELP=1 ; shift ;;
             -i|--ignore-required-changes) ARG_IGNORE_REQUIRED_CHANGES=1 ; shift ;;
             -k|--keep-old-distfiles) ARG_KEEP_OLD_DISTFILES=1 ; shift ;;
+            -l|--live-rebuild) ARG_LIVE_REBUILD=1 ; shift ;;
             -m|--no-eix-metadata-update) ARG_NO_EIX_METADATA_UPDATE=1 ; shift ;;
             -M|--no-module-rebuild) ARG_NO_MODULE_REBUILD=1 ; shift ;;
             -n|--no-kernel-upgrade) ARG_NO_KERNEL_UPGRADE=1 ; shift ;;
